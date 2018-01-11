@@ -1,8 +1,8 @@
 pragma solidity ^0.4.18;
 
-import "github.com/oraclize/ethereum-api/oraclizeAPI_0.5.sol";
+//import "github.com/oraclize/ethereum-api/oraclizeAPI_0.5.sol";
 
-contract ManagerContract is usingOraclize {
+contract ManagerContract {
     struct Player {
         address owner;
         string name;
@@ -28,10 +28,10 @@ contract ManagerContract is usingOraclize {
         Paid
     }
     
-    address private owner;
-    Player private player;
-    Status private currentStatus = Status.None;
-    ContractState private currentState;
+    address public owner;
+    Player public player;
+    Status public currentStatus = Status.None;
+    ContractState public currentState;
     
     mapping (bytes32 => CallbackType) private callbacks;
     
@@ -60,7 +60,7 @@ contract ManagerContract is usingOraclize {
     function signContractWithPlayer(address _owner, string _name, uint256 _salary) 
         public 
         requiesOwner
-        atState(ContractState.Created)
+        atState(ContractState.Created) 
     {
         player = Player(_owner, _name, _salary);
         newStatus("Contract Signed by Manager");
@@ -80,28 +80,28 @@ contract ManagerContract is usingOraclize {
     
     function signContractWithManager() 
         public 
-        atState(ContractState.ManagerSigned)
+        //atState(ContractState.ManagerSigned)
     {
-        if (msg.sender != player.owner)
-            revert();
+        // if (msg.sender != player.owner)
+        //     revert();
         
-        if (this.balance < player.salary)
-            revert();
+        // if (this.balance < player.salary)
+        //     revert();
     
         newStatus("Contract Signed by Player");
         
         currentState = ContractState.PlayerSigned;
         currentState = ContractState.AwaitingPayment;
         
-        queueDelayedPay(10 seconds);
+        //queueDelayedPay(10 seconds);
     }
     
     function pay() 
         public
         atState(ContractState.AwaitingPayment)
     {
-        if (msg.sender != owner && msg.sender != oraclize_cbAddress())
-            revert();
+        // if (msg.sender != owner && msg.sender != oraclize_cbAddress())
+        //     revert();
         
         if (currentStatus == Status.None) {
             updateStatus();
@@ -116,12 +116,10 @@ contract ManagerContract is usingOraclize {
         } else {
             if (this.balance < player.salary) {
                 contractNotPaid("Insufficient funds");
-            }
-            else {
+            } else {
                 if (!player.owner.send(player.salary)) {
                     contractNotPaid("Failed to send funds");
-                }
-                else {
+                } else {
                     fundsTransfered(player.salary, this.balance);
                     contractPaid();
                 }
@@ -140,13 +138,13 @@ contract ManagerContract is usingOraclize {
         selfdestruct(owner);
     }
     
-    function getCurrentStatus() public constant returns(Status) {
-        return currentStatus;
+    function getCurrentState() public constant returns(ContractState) {
+        return currentState;
     }
     
-    function __callback(bytes32 myid, string result) public {
-        if (msg.sender != oraclize_cbAddress()) 
-            revert();
+    function callback(bytes32 myid, int result) public {
+        // if (msg.sender != oraclize_cbAddress()) 
+        //     revert();
             
         newStatus("Callback!");
             
@@ -159,9 +157,9 @@ contract ManagerContract is usingOraclize {
                 pay();
         } else { 
             // CallbackType.StatusCheck.
-            newStatus(result);
+            // newStatus(result);
             
-            if (strCompare(result, "true") == 0)
+            if (result == 1)
                 currentStatus = Status.True;
             else
                 currentStatus = Status.False;
@@ -178,8 +176,10 @@ contract ManagerContract is usingOraclize {
     {
         newQuery("Status query was sent, standing by for the answer..");
         
-        bytes32 queryId = oraclize_query("URL", "json(http://test-blockchain.getsandbox.com/state).state");
+        //bytes32 queryId = oraclize_query("URL", "json(http://test-blockchain.getsandbox.com/state).state");
+        bytes32 queryId = "222";
         callbacks[queryId] = CallbackType.StatusCheck;
+        callback(queryId, 1);
     }
     
     function queueDelayedPay(uint _delay) 
@@ -189,7 +189,9 @@ contract ManagerContract is usingOraclize {
     {
         newQuery("Queueing delayed pay...");
         
-        bytes32 queryId = oraclize_query(_delay, "URL", "");
+        //bytes32 queryId = oraclize_query(_delay, "URL", "");
+        bytes32 queryId = "123";
         callbacks[queryId] = CallbackType.DelayedPay;
+        callback(queryId, 0);
     }
 }
