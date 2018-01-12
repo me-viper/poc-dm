@@ -6,4 +6,4 @@ console.log(playerAccount);
 
 var mc;
 ManagerContract.deployed().then(inst => mc = inst);
-mc.getCurrentState();
+//mc.getCurrentState();
