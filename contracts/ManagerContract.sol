@@ -1,10 +1,14 @@
 pragma solidity ^0.4.18;
 
 //import "github.com/oraclize/ethereum-api/oraclizeAPI_0.5.sol";
+//import "github.com/Arachnid/solidity-stringutils/strings.sol";
+import "imports/strings.sol";
 
 contract ManagerContract {
+    using strings for *;
+
     struct Player {
-        address owner;
+        address _owner;
         string name;
         uint256 salary;
     }
@@ -28,26 +32,25 @@ contract ManagerContract {
         Paid
     }
     
-    address public owner;
-    Player public player;
-    Status public currentStatus = Status.None;
-    ContractState public currentState;
-    
+    address private _owner;
+    Player private _player;
+    Status private _currentStatus = Status.None;
+    ContractState private _currentState = ContractState.Created;
+
     mapping (bytes32 => CallbackType) private callbacks;
     
-    modifier requiesOwner() {
-        require(msg.sender == owner);
+    modifier requiresOwner() {
+        require(msg.sender == _owner);
         _;
     }
     
     modifier atState(ContractState state) {
-        require(currentState == state);
+        require(_currentState == state);
         _;
     }
     
     function ManagerContract() public {
-        owner = msg.sender;
-        currentState = ContractState.Created;
+        _owner = msg.sender;
     }
     
     event ContractSigned(string msg, uint256 salary);
@@ -57,22 +60,22 @@ contract ManagerContract {
     event NewQuery(string description);
     event NewStatus(string status);
     
-    function signContractWithPlayer(address _owner, string _name, uint256 _salary) 
+    function signContractWithPlayer(address owner, string name, uint256 salary) 
         public 
-        requiesOwner
+        requiresOwner
         atState(ContractState.Created) 
     {
-        player = Player(_owner, _name, _salary);
+        _player = Player(owner, name, salary);
         NewStatus("Contract Signed by Manager");
         
-        currentState = ContractState.ManagerSigned;
+        _currentState = ContractState.ManagerSigned;
     }
     
     function () 
         public 
         payable
     {
-        if (currentState == ContractState.Paid)
+        if (_currentState == ContractState.Paid)
             revert();
         
         FundsTransfered(msg.value, this.balance);
@@ -82,16 +85,16 @@ contract ManagerContract {
         public 
         atState(ContractState.ManagerSigned)
     {
-        if (msg.sender != player.owner)
+        if (msg.sender != _player._owner)
             revert();
         
-        if (this.balance < player.salary)
+        if (this.balance < _player.salary)
             revert();
     
         NewStatus("Contract Signed by Player");
         
-        currentState = ContractState.PlayerSigned;
-        currentState = ContractState.AwaitingPayment;
+        _currentState = ContractState.PlayerSigned;
+        _currentState = ContractState.AwaitingPayment;
         
         //queueDelayedPay(10 seconds);
     }
@@ -100,52 +103,52 @@ contract ManagerContract {
         public
         atState(ContractState.AwaitingPayment)
     {
-        // if (msg.sender != owner && msg.sender != oraclize_cbAddress())
+        // if (msg.sender != _owner && msg.sender != oraclize_cbAddress())
         //     revert();
 
-        if (msg.sender != owner)
+        if (msg.sender != _owner)
             revert();
         
-        if (currentStatus == Status.None) {
+        if (_currentStatus == Status.None) {
             updateStatus();
             return;
         }
         
         // Trying to avoid paing twice by manual payment and delayed payment.
-        currentState = ContractState.Paid;
+        _currentState = ContractState.Paid;
         
-        if (currentStatus == Status.False) {
+        if (_currentStatus == Status.False) {
             ContractNotPaid("Status == false");
         } else {
-            if (this.balance < player.salary) {
+            if (this.balance < _player.salary) {
                 ContractNotPaid("Insufficient funds");
             } else {
-                if (!player.owner.send(player.salary)) {
+                if (!_player._owner.send(_player.salary)) {
                     ContractNotPaid("Failed to send funds");
                 } else {
-                    FundsTransfered(player.salary, this.balance);
+                    FundsTransfered(_player.salary, this.balance);
                     ContractPaid();
                 }
             }
         }
         
-        currentStatus = Status.None;
-        currentState = ContractState.AwaitingPayment;
+        _currentStatus = Status.None;
+        _currentState = ContractState.AwaitingPayment;
     }
     
     function closeContract() 
         public
-        requiesOwner
+        requiresOwner
     {
         NewStatus("Closing contract");
-        selfdestruct(owner);
+        selfdestruct(_owner);
     }
     
     function getCurrentState() public constant returns(ContractState) {
-        return currentState;
+        return _currentState;
     }
     
-    function callback(bytes32 myid, int result) public {
+    function __callback(bytes32 myid, string result) public {
         // if (msg.sender != oraclize_cbAddress()) 
         //     revert();
             
@@ -154,20 +157,20 @@ contract ManagerContract {
         if (callbacks[myid] == CallbackType.DelayedPay) {
             NewStatus("Making delayed pay");
             
-            if (currentStatus == Status.None)
+            if (_currentStatus == Status.None)
                 updateStatus();
             else
                 pay();
         } else { 
             // CallbackType.StatusCheck.
-            // NewStatus(result);
-            
-            if (result == 1)
-                currentStatus = Status.True;
+            NewStatus(result);
+
+            if (result.toSlice().equals("true".toSlice()))
+                _currentStatus = Status.True;
             else
-                currentStatus = Status.False;
+                _currentStatus = Status.False;
                 
-            if (currentState == ContractState.AwaitingPayment) {
+            if (_currentState == ContractState.AwaitingPayment) {
                 pay();
             }
         }
@@ -175,26 +178,26 @@ contract ManagerContract {
     
     function updateStatus() 
         public 
-        payable 
+        payable
     {
         NewQuery("Status query was sent, standing by for the answer..");
         
         //bytes32 queryId = oraclize_query("URL", "json(http://test-blockchain.getsandbox.com/state).state");
         bytes32 queryId = "222";
         callbacks[queryId] = CallbackType.StatusCheck;
-        callback(queryId, 1);
+        __callback(queryId, "true");
     }
     
-    function queueDelayedPay(uint _delay) 
+    function queueDelayedPay(uint delay) 
         public 
         payable 
         atState(ContractState.AwaitingPayment)
     {
         NewQuery("Queueing delayed pay...");
         
-        //bytes32 queryId = oraclize_query(_delay, "URL", "");
+        //bytes32 queryId = oraclize_query(delay, "URL", "");
         bytes32 queryId = "123";
         callbacks[queryId] = CallbackType.DelayedPay;
-        callback(queryId, 0);
+        __callback(queryId, "");
     }
 }
