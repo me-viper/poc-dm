@@ -50,12 +50,12 @@ contract ManagerContract {
         currentState = ContractState.Created;
     }
     
-    event contractSigned(string msg, uint256 salary);
-    event fundsTransfered(uint256 funds, uint256 balance);
-    event contractPaid();
-    event contractNotPaid(string msg);
-    event newQuery(string description);
-    event newStatus(string status);
+    event ContractSigned(string msg, uint256 salary);
+    event FundsTransfered(uint256 funds, uint256 balance);
+    event ContractPaid();
+    event ContractNotPaid(string msg);
+    event NewQuery(string description);
+    event NewStatus(string status);
     
     function signContractWithPlayer(address _owner, string _name, uint256 _salary) 
         public 
@@ -63,7 +63,7 @@ contract ManagerContract {
         atState(ContractState.Created) 
     {
         player = Player(_owner, _name, _salary);
-        newStatus("Contract Signed by Manager");
+        NewStatus("Contract Signed by Manager");
         
         currentState = ContractState.ManagerSigned;
     }
@@ -75,20 +75,20 @@ contract ManagerContract {
         if (currentState == ContractState.Paid)
             revert();
         
-        fundsTransfered(msg.value, this.balance);
+        FundsTransfered(msg.value, this.balance);
     }
     
     function signContractWithManager() 
         public 
-        //atState(ContractState.ManagerSigned)
+        atState(ContractState.ManagerSigned)
     {
-        // if (msg.sender != player.owner)
-        //     revert();
+        if (msg.sender != player.owner)
+            revert();
         
-        // if (this.balance < player.salary)
-        //     revert();
+        if (this.balance < player.salary)
+            revert();
     
-        newStatus("Contract Signed by Player");
+        NewStatus("Contract Signed by Player");
         
         currentState = ContractState.PlayerSigned;
         currentState = ContractState.AwaitingPayment;
@@ -102,6 +102,9 @@ contract ManagerContract {
     {
         // if (msg.sender != owner && msg.sender != oraclize_cbAddress())
         //     revert();
+
+        if (msg.sender != owner)
+            revert();
         
         if (currentStatus == Status.None) {
             updateStatus();
@@ -112,16 +115,16 @@ contract ManagerContract {
         currentState = ContractState.Paid;
         
         if (currentStatus == Status.False) {
-            contractNotPaid("Status == false");
+            ContractNotPaid("Status == false");
         } else {
             if (this.balance < player.salary) {
-                contractNotPaid("Insufficient funds");
+                ContractNotPaid("Insufficient funds");
             } else {
                 if (!player.owner.send(player.salary)) {
-                    contractNotPaid("Failed to send funds");
+                    ContractNotPaid("Failed to send funds");
                 } else {
-                    fundsTransfered(player.salary, this.balance);
-                    contractPaid();
+                    FundsTransfered(player.salary, this.balance);
+                    ContractPaid();
                 }
             }
         }
@@ -134,7 +137,7 @@ contract ManagerContract {
         public
         requiesOwner
     {
-        newStatus("Closing contract");
+        NewStatus("Closing contract");
         selfdestruct(owner);
     }
     
@@ -146,10 +149,10 @@ contract ManagerContract {
         // if (msg.sender != oraclize_cbAddress()) 
         //     revert();
             
-        newStatus("Callback!");
+        NewStatus("Callback!");
             
         if (callbacks[myid] == CallbackType.DelayedPay) {
-            newStatus("Making delayed pay");
+            NewStatus("Making delayed pay");
             
             if (currentStatus == Status.None)
                 updateStatus();
@@ -157,7 +160,7 @@ contract ManagerContract {
                 pay();
         } else { 
             // CallbackType.StatusCheck.
-            // newStatus(result);
+            // NewStatus(result);
             
             if (result == 1)
                 currentStatus = Status.True;
@@ -174,7 +177,7 @@ contract ManagerContract {
         public 
         payable 
     {
-        newQuery("Status query was sent, standing by for the answer..");
+        NewQuery("Status query was sent, standing by for the answer..");
         
         //bytes32 queryId = oraclize_query("URL", "json(http://test-blockchain.getsandbox.com/state).state");
         bytes32 queryId = "222";
@@ -187,7 +190,7 @@ contract ManagerContract {
         payable 
         atState(ContractState.AwaitingPayment)
     {
-        newQuery("Queueing delayed pay...");
+        NewQuery("Queueing delayed pay...");
         
         //bytes32 queryId = oraclize_query(_delay, "URL", "");
         bytes32 queryId = "123";
